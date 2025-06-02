@@ -191,3 +191,5 @@ catch {
     Write-Output "$TimeStamp - ❌ An error occurred during domain controller promotion: $_" | Out-File $LogFile -Append
     throw
 }
+
+Restart-Computer
