@@ -76,38 +76,11 @@ param(
     [string]$SysvolPath = "C:\SYSVOL"
 )  
 
-
 # Defining log variables
 $LogPath = "C:\Logs" 
 $LogFile = "$LogPath\ADSetup_log.txt" 
 $TimeStamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture) 
 
-# Checks if folder for logfile exists 
-if (-Not (Test-Path -Path $LogPath)) {
-    New-Item -ItemType Directory -Path $LogPath
-    "" | Out-File -FilePath $LogFile # Clears log upon new run
-    Write-Output "$TimeStamp - ℹ️ Following folder has been created: $LogPath" | Out-File $LogFile -Append
-} 
-else {
-    "" | Out-File -FilePath $LogFile # Clears log upon new run
-    Write-Output "$TimeStamp - ℹ️ The following folder already exists: $LogPath" | Out-File $LogFile -Append
-}
-
-# Checking if AD-DomainServices are installed
-$Feature = "AD-Domain-Services"
-$ADCheck = Get-WindowsFeature $Feature
-
- if (-not $ADCheck.Installed) 
-    {
-        Write-Output "$TimeStamp - ❌ $Feature role is not installed" | Out-File $LogFile -Append 
-        Write-Output "$TimeStamp - Installing $Feature..." | Out-File $LogFile -Append
-        Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
-    }
- 
- else 
-    {
-        Write-Output "$TimeStamp - ✅ $Feature role is already installed" | Out-File $LogFile -Append
-    }
 
 # Prompt for DSRM password
 $SafeAdministratorPassword = Read-Host "Enter DSRM password" -AsSecureString
@@ -145,9 +118,34 @@ if (-not (Compare-Password -First $SafeAdministratorPassword -Second $ConfirmPas
     exit 1
 }
 
-try {
-    $TimeStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+# Checks if folder for logfile exists 
+if (-Not (Test-Path -Path $LogPath)) {
+    New-Item -ItemType Directory -Path $LogPath
+    "" | Out-File -FilePath $LogFile # Clears log upon new run
+    Write-Output "$TimeStamp - ℹ️ Following folder has been created: $LogPath" | Out-File $LogFile -Append
+} 
+else {
+    "" | Out-File -FilePath $LogFile # Clears log upon new run
+    Write-Output "$TimeStamp - ℹ️ The following folder already exists: $LogPath" | Out-File $LogFile -Append
+}
 
+# Checking if AD-DomainServices are installed
+$Feature = "AD-Domain-Services"
+$ADCheck = Get-WindowsFeature $Feature
+
+ if (-not $ADCheck.Installed) 
+    {
+        Write-Output "$TimeStamp - ❌ $Feature role is not installed" | Out-File $LogFile -Append 
+        Write-Output "$TimeStamp - Installing $Feature..." | Out-File $LogFile -Append
+        Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+    }
+ 
+ else 
+    {
+        Write-Output "$TimeStamp - ✅ $Feature role is already installed" | Out-File $LogFile -Append
+    }
+
+try {
     # Log the start of the operation
     Write-Output "$TimeStamp - 🚀 Starting domain controller promotion..." | Out-File $LogFile -Append
 
