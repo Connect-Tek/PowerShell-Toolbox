@@ -1,0 +1,146 @@
+<#
+.SYNOPSIS
+Creates a DHCPv4 scope and sets basic options.
+
+.DESCRIPTION
+This script creates a new DHCP scope with a given IP range, subnet mask, and other network settings like DNS servers, gateway, and domain name.
+
+.PARAMETER ScopeName
+Name of the DHCP scope.
+
+.PARAMETER Description
+Optional description for the scope.
+
+.PARAMETER StartRange
+Start IP address of the DHCP range.
+
+.PARAMETER EndRange
+End IP address of the DHCP range.
+
+.PARAMETER SubnetMask
+Subnet mask for the DHCP scope.
+
+.PARAMETER LeaseDuration
+(Optional) Lease duration in seconds.
+
+.PARAMETER DefaultGateway
+Default gateway IP address.
+
+.PARAMETER DNSServersString
+Two DNS servers as a comma-separated string **in quotes**.  
+Example: `"8.8.8.8,8.8.4.4"`
+
+.PARAMETER DomainName
+Domain name for DHCP clients.
+
+.EXAMPLE
+.\Create-DhcpScope.ps1 -ScopeName "OfficeScope" -StartRange 192.168.10.10 -EndRange 192.168.10.100 `
+-SubnetMask 255.255.255.0 -DefaultGateway 192.168.10.1 `
+-DNSServersString "8.8.8.8,8.8.4.4" -DomainName "office.local"
+
+Creates a scope with the specified settings.
+#>
+
+
+
+[CmdletBinding()]
+param 
+(
+    [Parameter(Mandatory)]
+    [string]$ScopeName,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Description,
+
+    [Parameter(Mandatory)]
+    [System.Net.IPAddress]$StartRange,
+
+    [Parameter(Mandatory)]
+    [System.Net.IPAddress]$EndRange,
+
+    [Parameter(Mandatory)]
+    [System.Net.IPAddress]$SubnetMask,
+
+    [Parameter(Mandatory=$false)]
+    [Int]$LeaseDuration,
+
+    [Parameter(Mandatory)]
+    [System.Net.IPAddress]$DefaultGateway,
+    
+    [Parameter(Mandatory)]
+    [string]$DNSServersString,
+    
+    [Parameter(Mandatory)]
+    [string]$DomainName
+)
+
+# Defining log variables
+$LogPath = "C:\Logs" 
+$LogFile = "$LogPath\DHCScope_log.txt" 
+$TimeStamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss", [System.Globalization.CultureInfo]::InvariantCulture) 
+
+# Checks if folder for logfile exists 
+if (-Not (Test-Path -Path $LogPath))
+    {
+        New-Item -ItemType Directory -Path $LogPath
+        "" | Out-File -FilePath $LogFile # Clears log upon new run
+        Write-Output "$TimeStamp - 📁 Creating directory for log: $LogPath" | Out-File $LogFile -Append
+    } 
+else 
+    {
+        "" | Out-File -FilePath $LogFile # Clears log upon new run
+        Write-Output "$TimeStamp - ℹ️ Skipping creating directory: $LogPath" | Out-File $LogFile -Append
+    }
+
+# Split the DNS servers string by comma and trim spaces
+$DNSServers = $DNSServersString -split ',' | ForEach-Object { $_.Trim() }
+
+# Validate exactly 2 DNS servers
+if ($DNSServers.Count -ne 2) {
+    throw "Exactly 2 DNS servers must be specified, separated by a comma. You provided $($DNSServers.Count)."
+}
+
+# Convert strings to IPAddress objects and validate format
+$DNSServers = $DNSServers | ForEach-Object {
+    try {
+        [System.Net.IPAddress]::Parse($_)
+    } catch {
+        throw "Invalid IP address format in DNS servers: $_"
+    }
+}
+
+$ScopeMessage = @"
+$TimeStamp - ℹ️ Creating DHCP scope: $ScopeName
+Range: $StartRange - $EndRange
+Subnet Mask: $SubnetMask
+"@
+
+# Create DHCP scope
+Add-DhcpServerv4Scope `
+    -Name $ScopeName `
+    -Description $Description `
+    -StartRange $StartRange `
+    -EndRange $EndRange `
+    -SubnetMask $SubnetMask `
+    -LeaseDuration $LeaseDuration `
+    -State Active 
+
+Write-Output $ScopeMessage | Out-File $LogFile -Append
+
+# Get scope for setting options
+$Scope = (Get-DhcpServerv4Scope | Where-Object { $_.Name -eq $ScopeName }).ScopeId
+
+$OptionsMessage = @"
+$TimeStamp - ℹ️ Following options has been set for: $ScopeName
+Default Gateway: $DefaultGateway
+DNS Servers: $DNSServers
+Domain Name: $DomainName
+"@
+# Set DHCP options including exactly 2 DNS servers
+Set-DhcpServerv4OptionValue `
+    -ScopeId $Scope `
+    -Router $DefaultGateway `
+    -DnsServer $DNSServers -Force `
+    -DnsDomain $DomainName
+
+Write-Output $OptionsMessage | Out-File $LogFile -Append
